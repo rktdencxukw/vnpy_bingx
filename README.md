@@ -2,6 +2,21 @@
 bingx永续v2接口
 由于bingx websocket数据使用gzip压缩了websocket_client里面要改下
 
+    #------------------------------------------------------------------------------------------------- 
+    def send_packet(self, packet: Union[dict,str]):
+        """
+        发送数据包字典到服务器。
+        如果需要发送非json数据，请重载实现本函数。
+        """
+        if self._ws:
+            if packet == "Pong":
+                text = packet
+            else:
+                text: str = json.dumps(packet)
+            self._record_last_sent_text(text)
+            coro: coroutine = self._ws.send_str(text)
+            run_coroutine_threadsafe(coro, self._loop)
+            
     async def _run(self):
         """
         在事件循环中运行的主协程
