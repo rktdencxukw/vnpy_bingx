@@ -43,7 +43,7 @@ from vnpy.trader.object import (
     BarData
 )
 from vnpy.trader.event import EVENT_TIMER
-from vnpy.trader.utility import (delete_dr_data,remain_alpha,get_folder_path,load_json, save_json,get_local_datetime,extract_vt_symbol,TZ_INFO,remain_digit,GetFilePath,get_uuid)
+from vnpy.trader.utility import (delete_dr_data,remain_alpha,get_folder_path,load_json, save_json,get_local_datetime,extract_vt_symbol,TZ_INFO,remain_digit,GetFilePath,get_uuid,ACTIVE_STATUSES)
 from vnpy.trader.database import database_manager
 from vnpy.api.websocket import WebsocketClient
 from vnpy.api.rest import Request, RestClient
@@ -262,7 +262,8 @@ class BingxRestApi(RestClient):
         self.listen_key = ""
         # 用户自定义orderid与系统orderid映射
         self.orderid_map = {}
-        self.trade_volume:Dict[str,float] = defaultdict(float)
+        # 系统orderid与委托单成交量映射
+        self.trade_volume_map:Dict[str,float] = defaultdict(float)
     #------------------------------------------------------------------------------------------------- 
     def sign(self, request: Request) -> Request:
         """
@@ -461,7 +462,7 @@ class BingxRestApi(RestClient):
         """
         """
         data = data["data"]["order"]
-        self.trade_volume[data["orderId"]] = float(data["executedQty"])
+        self.trade_volume_map[data["orderId"]] = float(data["executedQty"])
     #------------------------------------------------------------------------------------------------- 
     def _new_order_id(self) -> int:
         """
@@ -939,7 +940,9 @@ class BingxWebsocketApi(WebsocketClient):
         order_id = data["c"]
         system_id = data["i"]
         self.gateway.rest_api.get_traded_volume(data["s"],system_id)
-        self.gateway.rest_api.orderid_map[order_id] = system_id
+        orderid_map = self.gateway.rest_api.orderid_map
+        trade_volume_map = self.gateway.rest_api.trade_volume_map
+        orderid_map[order_id] = system_id
 
         order: OrderData = OrderData(
             orderid=order_id,
@@ -954,13 +957,15 @@ class BingxWebsocketApi(WebsocketClient):
             gateway_name=self.gateway_name,
         )
         # 通过restapi获取委托单成交量
-        trade_volume = self.gateway.rest_api.trade_volume[system_id]
+        trade_volume = trade_volume_map[system_id]
         order.traded = trade_volume
         self.gateway.on_order(order)
         if order.status not in [Status.NOTTRADED, Status.PARTTRADED]:
-            self.gateway.rest_api.orderid_map.pop(order_id)
-            self.gateway.rest_api.trade_volume.pop(system_id)
-            
+            if order_id in orderid_map:
+                orderid_map.pop(order_id)
+            if system_id in trade_volume_map:
+                trade_volume_map.pop(system_id)
+
         if order.traded:
             self.trade_id += 1
             trade: TradeData = TradeData(
