@@ -957,7 +957,10 @@ class BingxWebsocketApi(WebsocketClient):
         trade_volume = self.gateway.rest_api.trade_volume[system_id]
         order.traded = trade_volume
         self.gateway.on_order(order)
-
+        if order.status not in [Status.NOTTRADED, Status.PARTTRADED]:
+            self.gateway.rest_api.orderid_map.pop(order_id)
+            self.gateway.rest_api.trade_volume.pop(system_id)
+            
         if order.traded:
             self.trade_id += 1
             trade: TradeData = TradeData(
