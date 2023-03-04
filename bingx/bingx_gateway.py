@@ -629,7 +629,7 @@ class BingxRestApi(RestClient):
                 name=raw["symbol"],
                 price_tick=float("1e-{}".format(raw['pricePrecision'])),
                 size=20,
-                min_volume=raw["tradeMinLimit"],
+                min_volume=float("1e-{}".format(raw['quantityPrecision'])),
                 open_commission_ratio = raw["feeRate"],
                 product=Product.FUTURES,
                 gateway_name=self.gateway_name,
