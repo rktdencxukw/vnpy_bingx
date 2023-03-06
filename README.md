@@ -1,7 +1,7 @@
 # vnpy_bingx
 bingx永续v2接口
 
-由于bingx websocket数据使用gzip压缩了websocket_client里面要改下
+由于bingx websocket数据使用gzip压缩了websocket_client里面要改下，与huobi接口冲突请把火币交易接口里面的unpack_data函数删除
 
     #------------------------------------------------------------------------------------------------- 
     def send_packet(self, packet: Union[dict,str]):
