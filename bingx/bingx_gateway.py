@@ -1,5 +1,3 @@
-from inspect import signature
-import json
 from time import time,sleep
 from collections import defaultdict
 import hmac
@@ -537,7 +535,6 @@ class BingxRestApi(RestClient):
             "quantity": float(req.volume),
             "type": ORDERTYPE_VT2BINGX[req.type],
         }
-        print(data)
         self.add_request(
             method="POST",
             path="/openApi/swap/v2/trade/order",
