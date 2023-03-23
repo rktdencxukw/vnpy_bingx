@@ -116,8 +116,10 @@ class BingxGateway(BaseGateway):
         self.rest_api: "BingxRestApi" = BingxRestApi(self)
         self.orders: Dict[str, OrderData] = {}
         self.recording_list = [vt_symbol for vt_symbol in recording_list if extract_vt_symbol(vt_symbol)[2] == self.gateway_name  and not extract_vt_symbol(vt_symbol)[0].endswith("99")]
-        #查询历史数据合约列表
-        self.history_contract = copy(self.recording_list)
+        # 查询历史数据合约列表
+        self.history_contracts = copy(self.recording_list)
+        # 查询行情合约列表
+        self.query_contracts = copy(self.recording_list)
         self.query_functions = [self.query_account,self.query_order,self.query_position]
         self.count = 0
     #------------------------------------------------------------------------------------------------- 
@@ -189,8 +191,8 @@ class BingxGateway(BaseGateway):
         """
         查询合约历史数据
         """
-        if len(self.history_contract) > 0:
-            symbol,exchange,gateway_name = extract_vt_symbol(self.history_contract.pop(0))
+        if len(self.history_contracts) > 0:
+            symbol,exchange,gateway_name = extract_vt_symbol(self.history_contracts.pop(0))
             req = HistoryRequest(
                 symbol = symbol,
                 exchange = exchange,
@@ -206,6 +208,14 @@ class BingxGateway(BaseGateway):
         """
         处理定时事件
         """
+        # 一次查询30个tick行情
+        query_contracts = self.query_contracts[:30]
+        remain_contracts =self.query_contracts[30:]
+        for vt_symbol in query_contracts:
+            symbol,*_ = extract_vt_symbol(vt_symbol)
+            self.rest_api.query_tick(symbol)
+        remain_contracts.extend(query_contracts)
+        self.query_contracts = remain_contracts
         function = self.query_functions.pop(0)
         function()
         self.query_functions.append(function)
@@ -382,6 +392,41 @@ class BingxRestApi(RestClient):
         收到listen_key回报
         """
         pass
+    #------------------------------------------------------------------------------------------------- 
+    def query_tick(self,symbol:str):
+        """
+        查询24小时tick变动
+        """
+        data: dict = {
+            "security": Security.SIGNED,
+            }
+        params = {
+            "symbol":symbol
+        }
+        path: str = "/openApi/swap/v2/quote/ticker"
+        self.add_request(
+            method="GET",
+            path=path,
+            callback=self.on_tick,
+            data=data,
+            params = params
+        )
+    #------------------------------------------------------------------------------------------------- 
+    def on_tick(self,data: dict, request: Request) -> None:
+        data = data["data"]
+        symbol = data["symbol"]
+        tick = self.ws_api.ticks.get(symbol,None)
+        if not tick:
+            tick = TickData(
+                symbol= symbol,
+                exchange= Exchange.BINGX,
+                gateway_name= self.gateway_name,
+            )
+        tick.datetime = get_local_datetime(data["closeTime"])
+        tick.last_price = float(data["lastPrice"])
+        tick.high_price = float(data["highPrice"])
+        tick.low_price = float(data["lowPrice"])
+        tick.volume = float(data["volume"])
     #------------------------------------------------------------------------------------------------- 
     def query_account(self) -> None:
         """
@@ -919,9 +964,7 @@ class BingxWebsocketApi(WebsocketClient):
         symbol = data["s"]
         tick = self.ticks[symbol]
         tick.last_price = float(data["p"])
-        tick.volume = float(data["q"])
         tick.datetime = get_local_datetime(data["T"])
-        self.gateway.on_tick(copy(tick))
     #------------------------------------------------------------------------------------------------- 
     def on_depth(self,packet:dict):
         """
