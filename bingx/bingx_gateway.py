@@ -216,6 +216,7 @@ class BingxGateway(BaseGateway):
             self.rest_api.query_tick(symbol)
         remain_contracts.extend(query_contracts)
         self.query_contracts = remain_contracts
+
         function = self.query_functions.pop(0)
         function()
         self.query_functions.append(function)
@@ -422,8 +423,7 @@ class BingxRestApi(RestClient):
                 exchange= Exchange.BINGX,
                 gateway_name= self.gateway_name,
             )
-        tick.datetime = get_local_datetime(data["closeTime"])
-        tick.last_price = float(data["lastPrice"])
+        tick.open_price = float(data["openPrice"])
         tick.high_price = float(data["highPrice"])
         tick.low_price = float(data["lowPrice"])
         tick.volume = float(data["volume"])
