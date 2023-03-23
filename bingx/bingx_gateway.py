@@ -919,6 +919,7 @@ class BingxWebsocketApi(WebsocketClient):
         symbol = data["s"]
         tick = self.ticks[symbol]
         tick.last_price = float(data["p"])
+        tick.volume = float(data["q"])
         tick.datetime = get_local_datetime(data["T"])
         self.gateway.on_tick(copy(tick))
     #------------------------------------------------------------------------------------------------- 
